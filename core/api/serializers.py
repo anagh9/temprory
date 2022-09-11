@@ -8,18 +8,26 @@ class MovieSerializer(serializers.ModelSerializer):
     class Meta:
         model = Movie
         fields = ('uuid', 'title', 'description',
-                  'genres')
+                  'genres', 'collections')
+
+    def create(self, validated_data):
+        return Movie.objects.create(**validated_data)
 
 
 class CollectionSerializer(serializers.ModelSerializer):
-    collections = MovieSerializer(many=True, read_only=True)
+    # collections = MovieSerializer(many=True, read_only=True)
 
     class Meta:
         model = Collection
-        fields = ('uuid', 'collections')
+        fields = ('uuid', 'title', 'description')
 
-    def get_is_success(self, obj):
-        return True
+    def create(self, validated_data):
+        return Collection.objects.create(**validated_data)
+
+    def update(self, instance, validated_data):
+        instance.title = validated_data.get('title', instance.title)
+        instance.save()
+        return instance
 
 
 class GenreSerializer(serializers.ModelSerializer):

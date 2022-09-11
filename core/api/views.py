@@ -1,3 +1,7 @@
+from rest_framework import status
+from rest_framework.generics import DestroyAPIView
+from rest_framework.generics import UpdateAPIView
+import collections
 from django.db.models import Count
 from .models import *
 from .serializers import *
@@ -17,23 +21,24 @@ from rest_framework.views import APIView
 
 
 class GetMovie(APIView):
-    authentication_classes = [BasicAuthentication]
-    permission_classes = [IsAuthenticated]
-
     def get(self, request):
         r = requests.get(
-            'https://demo.credy.in/api/v1/maya/movies/', params=request.GET)
+            settings.BASE_URL, params=request.GET, auth=(settings.BASE_USERNAME, settings.BASE_PASSWORD))
+
         if r.status_code == 200:
             return Response(r.json())
-        return HttpResponse('Could not save data')
+        return Response({"msg": "Error Try Again"})
 
 
-class MovieViewSet(viewsets.ModelViewSet):
-    queryset = Movie.objects.all()
-    serializer_class = MovieSerializer
+# class MovieViewSet(viewsets.ModelViewSet):
+    # queryset = Movie.objects.all()
+    # serializer_class = MovieSerializer
 
 
-class CollectionViewSet(viewsets.ModelViewSet):
+class CollectionViewSet(viewsets.ViewSet):
+    queryset = Collection.objects.all()
+    serializer_class = CollectionSerializer
+    permission_classes = (IsAuthenticated, )
 
     def list(self, request):
         queryset = Collection.objects.all()
@@ -43,9 +48,75 @@ class CollectionViewSet(viewsets.ModelViewSet):
         genres_serializer = GenreSerializer(queryset_genres, many=True)
         return Response({
             "is_success": True,
-            "data": serializer.data,
+            "data": {"collections": serializer.data},
             "favourite_genres": genres_serializer.data
         })
 
-    queryset = Collection.objects.all()
-    serializer_class = CollectionSerializer
+    def create(self, request):
+        title = request.data.get("title")
+        description = request.data.get("description")
+        movies = request.data.get("movies")
+        collection_serializer = CollectionSerializer(
+            data={"title": title, "description": description})
+        if collection_serializer.is_valid(raise_exception=True):
+            collection_saved = collection_serializer.save()
+
+        for _ in movies:
+            title = _.get('title')
+            description = _.get('description')
+            genres = _.get('genres')
+            movie_serializer = MovieSerializer(data={
+                "title": title, "description": description, "genres": genres, "collections": collection_saved.uuid
+            })
+            if movie_serializer.is_valid(raise_exception=True):
+                movie_saved = movie_serializer.save()
+
+        return Response({"collection_uuid": movie_saved.uuid})
+
+    def retrieve(self, request, pk=None):
+        queryset = Collection.objects.filter(pk=pk).first()
+        serializer = CollectionSerializer(queryset)
+        movie_queryset = Movie.objects.filter(collections=pk).all()
+        movie_serializer = MovieSerializer(movie_queryset, many=True)
+        obj = dict()
+        obj = serializer.data
+        obj["movies"] = movie_serializer.data
+        return Response(
+            obj
+        )
+
+    def update(self, request, pk=None):
+        queryset = Collection.objects.filter(pk=pk).first()
+        # movie_queryset = Movie.objects.filter(collections=pk).all()
+        # movie_serializer = MovieSerializer(movie_queryset, many=True)
+        title = request.data.get("title")
+        description = request.data.get("description")
+
+        collection_serializer = CollectionSerializer(queryset,
+                                                     data={"title": title, "description": description})
+
+        if collection_serializer.is_valid(raise_exception=True):
+            collection_serializer.save()
+
+        return Response(collection_serializer.data)
+
+    def destroy(self, request, pk=None):
+        snippet = Collection.objects.filter(pk=pk).first()
+        snippet.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+"""
+
+
+ “title”: “<Title of the collection>”,
+    “description”: “<Description of the collection>”,
+    “movies”: [
+        {
+            “title”: <title of the movie>,
+            “description”: <description of the movie>,
+            “genres”: <generes>,
+            “uuid”: <uuid>
+        }, ...
+    ]
+"""

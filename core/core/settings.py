@@ -55,8 +55,8 @@ MIDDLEWARE = [
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework.authentication.BasicAuthentication',
-    ]
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ],
 }
 
 ROOT_URLCONF = 'core.urls'
@@ -134,3 +134,4 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 BASE_USERNAME = config('username')
 BASE_PASSWORD = config('password')
+BASE_URL = "https://demo.credy.in/api/v1/maya/movies/"
