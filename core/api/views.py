@@ -71,7 +71,7 @@ class CollectionViewSet(viewsets.ViewSet):
             if movie_serializer.is_valid(raise_exception=True):
                 movie_saved = movie_serializer.save()
 
-        return Response({"collection_uuid": movie_saved.uuid})
+        return Response({"collection_uuid": collection_saved.uuid})
 
     def retrieve(self, request, pk=None):
         queryset = Collection.objects.filter(pk=pk).first()
