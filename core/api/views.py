@@ -1,3 +1,4 @@
+from collections import Counter
 from rest_framework import status
 from rest_framework.generics import DestroyAPIView
 from rest_framework.generics import UpdateAPIView
@@ -23,15 +24,16 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 class RegisterUser(APIView):
     def post(self, request):
-        serializer = UserSerializer(data= request.data)
+        serializer = UserSerializer(data=request.data)
         print(serializer)
 
         if serializer.is_valid():
             serializer.save()
-        user = User.objects.get(username= serializer.data['username'])
+        user = User.objects.get(username=serializer.data['username'])
         refresh = RefreshToken.for_user(user)
 
-        return Response({'access_token':str(refresh.access_token)})
+        return Response({'access_token': str(refresh.access_token)})
+
 
 class GetMovie(APIView):
     def get(self, request):
@@ -47,7 +49,6 @@ class GetMovie(APIView):
     # queryset = Movie.objects.all()
     # serializer_class = MovieSerializer
 
-
 class CollectionViewSet(viewsets.ViewSet):
     queryset = Collection.objects.all()
     serializer_class = CollectionSerializer
@@ -55,70 +56,98 @@ class CollectionViewSet(viewsets.ViewSet):
     permission_classes = (IsAuthenticated, )
 
     def list(self, request):
-        queryset = Collection.objects.all()
+        queryset = Collection.objects.filter(user=request.user).all()
         serializer = CollectionSerializer(queryset, many=True)
-        queryset_genres = Movie.objects.values("genres").annotate(
-            Count("genres")).order_by('-genres__count')[:3]
-        genres_serializer = GenreSerializer(queryset_genres, many=True)
-        hit = request.session.get('hit')
+        favorite_genres = []
+        count = {}
+        for _ in queryset:
+            for movie in _.movies:
+                print(movie)
+                print("#83", movie.get("genres"))
+                if len(movie["genres"]) < 1:
+                    continue
+                genres = movie["genres"].split(",")
+                for genre in genres:
+                    if count.get(genre):
+                        count[genre] = count[genre]+1
+                    else:
+                        count[genre] = 1
+                # genres = max(count, key=count.get)
+                # print("#76",genres)
+                # favorite_genres.append(genres)
+        print(count)
+
+        k = Counter(count)
+        high = k.most_common(3)
+        for i in high:
+            favorite_genres.append(i[0])
         return Response({
             "is_success": True,
             "data": {"collections": serializer.data},
-            "favourite_genres": genres_serializer.data
+            "favorite_genres": favorite_genres,
         })
 
     def create(self, request):
         title = request.data.get("title")
         description = request.data.get("description")
         movies = request.data.get("movies")
-        collection_serializer = CollectionSerializer(
-            data={"title": title, "description": description})
-        if collection_serializer.is_valid(raise_exception=True):
-            collection_saved = collection_serializer.save()
+        user = request.user
+        collection = Collection(
+            title=title, description=description, movies=movies, user=user)
+        collection.save()
+        # if collection_serializer.is_valid(raise_exception=True):
+        # collection_saved = collection_serializer.save()
 
-        for _ in movies:
-            title = _.get('title')
-            description = _.get('description')
-            genres = _.get('genres')
-            movie_serializer = MovieSerializer(data={
-                "title": title, "description": description, "genres": genres, "collections": collection_saved.uuid
-            })
-            if movie_serializer.is_valid(raise_exception=True):
-                movie_saved = movie_serializer.save()
+        # obj = collection.save()
+        # print("#78", collection.uuid)
+        collection_serializer = CollectionSingleSerializer(collection)
 
-        return Response({"collection_uuid": collection_saved.uuid})
+        return Response({"collection_uuid": collection_serializer.data.get("uuid")})
 
     def retrieve(self, request, pk=None):
-        queryset = Collection.objects.filter(pk=pk).first()
-        serializer = CollectionSerializer(queryset)
-        movie_queryset = Movie.objects.filter(collections=pk).all()
-        movie_serializer = MovieSerializer(movie_queryset, many=True)
+        queryset = Collection.objects.filter(pk=pk, user=request.user).first()
+        serializer = CollectionSingleSerializer(queryset)
         obj = dict()
         obj = serializer.data
-        obj["movies"] = movie_serializer.data
         return Response(
             obj
         )
 
     def update(self, request, pk=None):
-        queryset = Collection.objects.filter(pk=pk).first()
-        # movie_queryset = Movie.objects.filter(collections=pk).all()
-        # movie_serializer = MovieSerializer(movie_queryset, many=True)
+        queryset = Collection.objects.filter(pk=pk, user=request.user).first()
         title = request.data.get("title")
         description = request.data.get("description")
+        movies = request.data.get("movies")
 
-        collection_serializer = CollectionSerializer(queryset,
-                                                     data={"title": title, "description": description})
+        if title is not None:
+            queryset.title = title
+        if description is not None:
+            print("#125")
+            queryset.description = description
+        if movies is not None:
+            queryset.movies = movies
 
-        if collection_serializer.is_valid(raise_exception=True):
-            collection_serializer.save()
-
+        obj = queryset.save()
+        collection_serializer = CollectionSerializer(queryset)
         return Response(collection_serializer.data)
 
     def destroy(self, request, pk=None):
-        snippet = Collection.objects.filter(pk=pk).first()
+        snippet = Collection.objects.filter(pk=pk, user=request.user).first()
         snippet.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class RequestCount(APIView):
+    def get(self, request):
+        q = Count.objects.all().first()
+        counter = q.counter
+        return Response({"requests": counter})
+
+    def post(self, request):
+        q = Count.objects.all().first()
+        q.counter = 0
+        q.save()
+        return Response({"message": "request count reset successfully"})
 
 
 """

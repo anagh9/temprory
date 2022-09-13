@@ -1,43 +1,64 @@
-from dataclasses import field
 from rest_framework import serializers
-from .models import Movie, Collection
+from .models import Collection
 from django.contrib.auth.models import User
 
 
-class MovieSerializer(serializers.ModelSerializer):
+# class MovieSerializer(serializers.ModelSerializer):
 
-    class Meta:
-        model = Movie
-        fields = ('uuid', 'title', 'description',
-                  'genres', 'collections')
+#     class Meta:
+#         model = Movie
+#         fields = ('uuid', 'title', 'description',
+#                   'genres', 'collections')
 
-    def create(self, validated_data):
-        return Movie.objects.create(**validated_data)
+#     def create(self, validated_data):
+#         return Movie.objects.create(**validated_data)
+
+#     def update(self, request, *args, **kwargs):
+#         instance = self.get_object()
+#         instance.title = request.data.get("title")
+#         instance.description = request.data.get("description")
+#         instance.genres = request.data.get("genres")
+#         instance.save()
+
+#         serializer = self.get_serializer(instance)
+#         serializer.is_valid(raise_exception=True)
+#         self.perform_update(serializer)
+
+#         return None
 
 
 class CollectionSerializer(serializers.ModelSerializer):
-    # collections = MovieSerializer(many=True, read_only=True)
 
     class Meta:
         model = Collection
-        fields = ('uuid', 'title', 'description')
+        fields = ('uuid', 'title', 'description',)
+
+
+class CollectionSingleSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Collection
+        fields = ('uuid', 'title', 'description', 'movies')
 
     def create(self, validated_data):
-        return Collection.objects.create(**validated_data)
+        request = self.context.get("request.user")
+        collection = Collection()
+        collection.user = request   
+        collection.title = validated_data['title']
+        collection.description = validated_data['description']
+        collection.movies = validated_data['movies']
+        collection.save()
+        return collection
 
     def update(self, instance, validated_data):
         instance.title = validated_data.get('title', instance.title)
+        instance.description = validated_data.get(
+            'description', instance.description)
+        instance.movies = validated_data.get('movies', instance.movies)
         instance.save()
         return instance
 
 
-class GenreSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Movie
-        fields = ('genres',)
-
 class UserSerializer(serializers.ModelSerializer):
-    # collections = MovieSerializer(many=True, read_only=True)
 
     class Meta:
         model = User
