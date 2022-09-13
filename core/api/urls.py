@@ -8,4 +8,5 @@ router.register(r'collection', CollectionViewSet)
 urlpatterns = [
     path(r'', include(router.urls)),
     path("movies/", GetMovie.as_view(), name="get-movie"),
+    path('register/', RegisterUser.as_view())
 ]

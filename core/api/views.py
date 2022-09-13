@@ -12,13 +12,26 @@ from django.shortcuts import HttpResponse
 from django.views.generic import ListView
 from django.http import JsonResponse
 from django.conf import settings
-
+from rest_framework_simplejwt.authentication import JWTAuthentication
 
 from rest_framework.authentication import SessionAuthentication, BasicAuthentication
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework_simplejwt.tokens import RefreshToken
 
+
+class RegisterUser(APIView):
+    def post(self, request):
+        serializer = UserSerializer(data= request.data)
+        print(serializer)
+
+        if serializer.is_valid():
+            serializer.save()
+        user = User.objects.get(username= serializer.data['username'])
+        refresh = RefreshToken.for_user(user)
+
+        return Response({'access_token':str(refresh.access_token)})
 
 class GetMovie(APIView):
     def get(self, request):
@@ -38,6 +51,7 @@ class GetMovie(APIView):
 class CollectionViewSet(viewsets.ViewSet):
     queryset = Collection.objects.all()
     serializer_class = CollectionSerializer
+    authentication_classes = [JWTAuthentication]
     permission_classes = (IsAuthenticated, )
 
     def list(self, request):
@@ -46,6 +60,7 @@ class CollectionViewSet(viewsets.ViewSet):
         queryset_genres = Movie.objects.values("genres").annotate(
             Count("genres")).order_by('-genres__count')[:3]
         genres_serializer = GenreSerializer(queryset_genres, many=True)
+        hit = request.session.get('hit')
         return Response({
             "is_success": True,
             "data": {"collections": serializer.data},

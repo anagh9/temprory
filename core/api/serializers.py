@@ -1,6 +1,7 @@
 from dataclasses import field
 from rest_framework import serializers
 from .models import Movie, Collection
+from django.contrib.auth.models import User
 
 
 class MovieSerializer(serializers.ModelSerializer):
@@ -34,3 +35,13 @@ class GenreSerializer(serializers.ModelSerializer):
     class Meta:
         model = Movie
         fields = ('genres',)
+
+class UserSerializer(serializers.ModelSerializer):
+    # collections = MovieSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = User
+        fields = ('username', 'password')
+
+    def create(self, validated_data):
+        return User.objects.create(**validated_data)
