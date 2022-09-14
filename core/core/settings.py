@@ -152,6 +152,6 @@ STATIC_URL = 'static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-BASE_USERNAME = config('username')
+BASE_U = config('us')
 BASE_PASSWORD = config('password')
 BASE_URL = "https://demo.credy.in/api/v1/maya/movies/"

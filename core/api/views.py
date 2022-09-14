@@ -1,7 +1,5 @@
 from collections import Counter
 from rest_framework import status
-from rest_framework.generics import DestroyAPIView
-from rest_framework.generics import UpdateAPIView
 import collections
 from django.db.models import Count
 from .models import *
@@ -23,31 +21,30 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 
 class RegisterUser(APIView):
-    def post(self, request):
-        serializer = UserSerializer(data=request.data)
-        print(serializer)
+    
+        def post(self, request):
+            try:
+                serializer = UserSerializer(data=request.data)
+                print(serializer)
 
-        if serializer.is_valid():
-            serializer.save()
-        user = User.objects.get(username=serializer.data['username'])
-        refresh = RefreshToken.for_user(user)
+                if serializer.is_valid():
+                    serializer.save()
+                user = User.objects.get(username=serializer.data['username'])
+                refresh = RefreshToken.for_user(user)
+                return Response({'access_token': str(refresh.access_token)})
 
-        return Response({'access_token': str(refresh.access_token)})
+            except Exception as e:
+                return Response({'message': 'Username and Password is required'}, status = status.HTTP_400_BAD_REQUEST)
 
 
 class GetMovie(APIView):
     def get(self, request):
         r = requests.get(
-            settings.BASE_URL, params=request.GET, auth=(settings.BASE_USERNAME, settings.BASE_PASSWORD))
+            settings.BASE_URL, auth=(settings.BASE_U, settings.BASE_PASSWORD))
 
         if r.status_code == 200:
             return Response(r.json())
-        return Response({"msg": "Error Try Again"})
-
-
-# class MovieViewSet(viewsets.ModelViewSet):
-    # queryset = Movie.objects.all()
-    # serializer_class = MovieSerializer
+        return Response({"msg": r})
 
 class CollectionViewSet(viewsets.ViewSet):
     queryset = Collection.objects.all()
@@ -56,111 +53,140 @@ class CollectionViewSet(viewsets.ViewSet):
     permission_classes = (IsAuthenticated, )
 
     def list(self, request):
-        queryset = Collection.objects.filter(user=request.user).all()
-        serializer = CollectionSerializer(queryset, many=True)
-        favorite_genres = []
-        count = {}
-        for _ in queryset:
-            for movie in _.movies:
-                print(movie)
-                print("#83", movie.get("genres"))
-                if len(movie["genres"]) < 1:
-                    continue
-                genres = movie["genres"].split(",")
-                for genre in genres:
-                    if count.get(genre):
-                        count[genre] = count[genre]+1
-                    else:
-                        count[genre] = 1
-                # genres = max(count, key=count.get)
-                # print("#76",genres)
-                # favorite_genres.append(genres)
-        print(count)
+        try:
+            queryset = Collection.objects.filter(user=request.user).all()
+            if queryset:
+                serializer = CollectionSerializer(queryset, many=True)
+                favorite_genres = []
+                count = {}
+                print(queryset)
+                for _ in queryset:
+                    for movie in _.movies:
+                        if len(movie["genres"]) < 1:
+                            continue
+                        genres = movie["genres"].split(",")
+                        count = CollectionViewSet.genres_dict(genres)
+                k = Counter(count)
+                high = k.most_common(3)
+                for i in high:
+                    favorite_genres.append(i[0])
+                return Response({
+                    "is_success": True,
+                    "data": {"collections": serializer.data},
+                    "favorite_genres": favorite_genres,
+                })
+            else:
+                return Response({'message':'Collection Not found'}, status = status.HTTP_404_NOT_FOUND)
 
-        k = Counter(count)
-        high = k.most_common(3)
-        for i in high:
-            favorite_genres.append(i[0])
-        return Response({
-            "is_success": True,
-            "data": {"collections": serializer.data},
-            "favorite_genres": favorite_genres,
-        })
+        except Exception as e:
+            return Response({'message': str(e)}, status = status.HTTP_400_BAD_REQUEST)
+        
+
+    @staticmethod
+    def genres_dict(genres):
+        count ={}
+        for genre in genres:
+            if count.get(genre):
+                count[genre] = count[genre]+1
+            else:
+                count[genre] = 1
+        return count
 
     def create(self, request):
-        title = request.data.get("title")
-        description = request.data.get("description")
-        movies = request.data.get("movies")
-        user = request.user
-        collection = Collection(
-            title=title, description=description, movies=movies, user=user)
-        collection.save()
-        # if collection_serializer.is_valid(raise_exception=True):
-        # collection_saved = collection_serializer.save()
+        try:
+            title = request.data.get("title")
+            description = request.data.get("description")
+            movies = request.data.get("movies")
+            user = request.user
+            collection = Collection(
+                title=title, description=description, movies=movies, user=user)
+            collection.save()
+            collection_serializer = CollectionSingleSerializer(collection)
+            return Response({"collection_uuid": collection_serializer.data.get("uuid")}, status= status.HTTP_201_CREATED)
 
-        # obj = collection.save()
-        # print("#78", collection.uuid)
-        collection_serializer = CollectionSingleSerializer(collection)
+        except Exception as e:
+            return Response({'message': str(e)}, status = status.HTTP_400_BAD_REQUEST)
 
-        return Response({"collection_uuid": collection_serializer.data.get("uuid")})
 
     def retrieve(self, request, pk=None):
-        queryset = Collection.objects.filter(pk=pk, user=request.user).first()
-        serializer = CollectionSingleSerializer(queryset)
-        obj = dict()
-        obj = serializer.data
-        return Response(
-            obj
-        )
+        try:
+            queryset = Collection.objects.filter(pk=pk, user=request.user).first()
+            if queryset:
+                serializer = CollectionSingleSerializer(queryset)
+                obj = dict()
+                obj = serializer.data
+                return Response(
+                    obj
+                )
+            else:
+                return Response({'message':'Collection Not found'}, status = status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({'message': str(e)}, status = status.HTTP_400_BAD_REQUEST)
+
+        
 
     def update(self, request, pk=None):
-        queryset = Collection.objects.filter(pk=pk, user=request.user).first()
-        title = request.data.get("title")
-        description = request.data.get("description")
-        movies = request.data.get("movies")
+        try:
+            queryset = Collection.objects.filter(pk=pk, user=request.user).first()
+            if queryset:
+                title = request.data.get("title")
+                description = request.data.get("description")
+                movies = request.data.get("movies")
 
-        if title is not None:
-            queryset.title = title
-        if description is not None:
-            print("#125")
-            queryset.description = description
-        if movies is not None:
-            queryset.movies = movies
+                if title is not None:
+                    queryset.title = title
+                if description is not None:
+                    queryset.description = description
+                if movies is not None:
+                    queryset.movies = movies
 
-        obj = queryset.save()
-        collection_serializer = CollectionSerializer(queryset)
-        return Response(collection_serializer.data)
+                obj = queryset.save()
+                collection_serializer = CollectionSerializer(queryset)
+                return Response(collection_serializer.data)
+            else:
+                return Response({'message':'Collection Not found'}, status = status.HTTP_404_NOT_FOUND)
+
+        except Exception as e:
+            return Response({'message': str(e)}, status = status.HTTP_400_BAD_REQUEST)
 
     def destroy(self, request, pk=None):
-        snippet = Collection.objects.filter(pk=pk, user=request.user).first()
-        snippet.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        try:
+            snippet = Collection.objects.filter(pk=pk, user=request.user).first()
+            if snippet:
+                snippet.delete()
+                return Response({'message' :'Collection deleted'},status=status.HTTP_204_NO_CONTENT)
+            else:
+                return Response({'message': 'Collection not found'}, status = status.HTTP_404_NOT_FOUND)
+
+        except Exception as e:
+            return Response({'message' : str(e)}, status = status.HTTP_400_BAD_REQUEST)
 
 
 class RequestCount(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = (IsAuthenticated, )
     def get(self, request):
-        q = Count.objects.all().first()
-        counter = q.counter
-        return Response({"requests": counter})
+        try:
+            if request.method == 'GET':
+                q = Count.objects.all().first()
+                counter = q.counter
+                return Response({"requests": counter})
+            else:
+                return Response({'message' : 'Method not allowed'}, status = status.HTTP_400_BAD_REQUEST)
+
+        except Exception as e:
+            return Response({'message' : str(e)}, status = status.HTTP_400_BAD_REQUEST)
 
     def post(self, request):
-        q = Count.objects.all().first()
-        q.counter = 0
-        q.save()
-        return Response({"message": "request count reset successfully"})
+        try:
+            if request.method == 'POST':
+                q = Count.objects.all().first()
+                q.counter = 0
+                q.save()
+                return Response({"message": "request count reset successfully"})
+            else:
+                return Response({'message' : 'Method not allowed'}, status = status.HTTP_400_BAD_REQUEST)
 
+        except Exception as e:
+            return Response({'message' : str(e)}, status = status.HTTP_400_BAD_REQUEST)
 
-"""
-
-
- “title”: “<Title of the collection>”,
-    “description”: “<Description of the collection>”,
-    “movies”: [
-        {
-            “title”: <title of the movie>,
-            “description”: <description of the movie>,
-            “genres”: <generes>,
-            “uuid”: <uuid>
-        }, ...
-    ]
-"""

@@ -3,30 +3,6 @@ from .models import Collection
 from django.contrib.auth.models import User
 
 
-# class MovieSerializer(serializers.ModelSerializer):
-
-#     class Meta:
-#         model = Movie
-#         fields = ('uuid', 'title', 'description',
-#                   'genres', 'collections')
-
-#     def create(self, validated_data):
-#         return Movie.objects.create(**validated_data)
-
-#     def update(self, request, *args, **kwargs):
-#         instance = self.get_object()
-#         instance.title = request.data.get("title")
-#         instance.description = request.data.get("description")
-#         instance.genres = request.data.get("genres")
-#         instance.save()
-
-#         serializer = self.get_serializer(instance)
-#         serializer.is_valid(raise_exception=True)
-#         self.perform_update(serializer)
-
-#         return None
-
-
 class CollectionSerializer(serializers.ModelSerializer):
 
     class Meta:
